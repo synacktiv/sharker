@@ -1,0 +1,8 @@
+build/
+venv/
+sharker.egg-info/
+__pycache__/
+sharker/__pycache__/
+sharker/filters/__pycache__/
+sharker_out/
+samples/sharker_out/

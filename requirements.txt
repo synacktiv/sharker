@@ -1,0 +1,5 @@
+ijson==3.4.0
+click==8.3.0
+click-option-group==0.5.8
+click-help-colors==0.9.4
+rich==14.1.0
