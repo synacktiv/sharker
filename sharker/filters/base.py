@@ -39,7 +39,7 @@ class FilterConfigBase:
         self._f_handle = None
 
         if self.__class__.pretty_name is None:
-            self.__class__.pretty_name = self.__class__.__module__.rsplit('.', 1)[-1]
+            self.__class__.pretty_name = self.name
 
         if unique:
             self._output_set = set()
