@@ -16,8 +16,6 @@ class FilterConfig(FilterConfigBase):
         'http.file_data'
     ]
 
-    store_in_files = True
-
     def parser(self, data):
-        self.output(''.join(data['http.file_data']))
+        self.output_to_file(''.join(data['http.file_data']))
         return 1

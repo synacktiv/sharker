@@ -1,5 +1,7 @@
 import logging
 import json
+import re
+import os
 
 
 class FilterConfigBase:
@@ -34,9 +36,11 @@ class FilterConfigBase:
 
     _output_set = None
 
-    def __init__(self, output_path, unique=False):
-        self._output_path = output_path
-        self._f_handle = None
+    _authorized_filename_rg = re.compile(r'^[a-zA-Z0-9\-_.]*$')
+
+    def __init__(self, output_prefix, unique=False):
+        self._output_prefix = output_prefix
+        self._f_handles = {}
 
         if self.__class__.pretty_name is None:
             self.__class__.pretty_name = self.name
@@ -56,36 +60,76 @@ class FilterConfigBase:
         for optional_selector in self.optional_selectors:
             if optional_selector in data:
                 result[optional_selector] = data[optional_selector]
-        self.output(json.dumps(result))
+        if self.store_in_files:
+            self.output_to_file(json.dumps(result))
+        else:
+            self.output(json.dumps(result))
         return 1
 
-    def edit_logger(self, data):
-        pass
+    def output(self, data, suffix=None):
+        '''
+        Method to output simple data. Data will either be stored in the filter's
+        file or displayed on the console (or both).
 
-    def output(self, data):
+        The optional suffix parameter allows to send the data to a suffixed
+        filter file. For instance, if this filter is called 'dns-req', data will
+        be outputed to 'dns-req.txt' by default, if you specify a suffix, it
+        will be outputed to f'dns-req-{suffix}.txt'.
+        '''
         if self._output_set is not None:
             if data in self._output_set:
                 return
             self._output_set.add(data)
 
         if self._do_log_to_console:
-            self._log_to_console(data)
+            self.log.info(data)
         if self._do_write_to_file:
-            self._output_to_file(data)
+            if self._f_handles.get(suffix) is None:
 
-    def _log_to_console(self, data):
-        self.log.info(data)
+                # Verify the sanity of the suffix
+                if suffix is not None and self._authorized_filename_rg.fullmatch(suffix):
+                    full_output_path = f'{self._output_prefix}-{suffix}.txt'
+                elif suffix is not None:
+                    self.log.error(f'Suffix for file output is not authorized: {suffix}')
+                    return
+                else:
+                    full_output_path = f'{self._output_prefix}.txt'
 
-    def _output_to_file(self, data):
-        if self.store_in_files:
+                self._f_handles[suffix] = open(full_output_path, 'a+', encoding='utf-8')
+
+            self._f_handles[suffix].write(data + '\n')
+
+    def output_to_file(self, data, filename=None):
+        '''
+        Method to output data to files in this filter's subfolder output.
+
+        If the end user configures this filter to output to console, this data
+        will be outputed to console instead.
+
+        The additional filename parameter allows to specify the filename to send
+        the data to, only [a-zA-Z0-9\\-_\\.] is authorized for security reasons.
+
+        The unicity is not verified for this type of output.
+        '''
+        if self._do_log_to_console:
+            self.log.info(data)
+        if self._do_write_to_file:
             self._last_packet_idx += 1
-            with open(f'{self._output_path}/{self._last_packet_idx}', 'w', encoding='utf-8') as f:
-                f.write(data)
-        else:
-            if self._f_handle is None:
-                self._f_handle = open(self._output_path, 'a+', encoding='utf-8')
-            self._f_handle.write(data + '\n')
 
+            if filename is not None and self._authorized_filename_rg.fullmatch(filename):
+                name = f'{self._output_prefix}/{filename}'
+            else:
+                name = f'{self._output_prefix}/{self._last_packet_idx}'
+
+            # Create filter's output folder
+            os.makedirs(self._output_prefix, exist_ok=True)
+
+            if isinstance(data, str):
+                with open(name, 'a+', encoding='utf-8') as f:
+                    f.write(data)
+            elif isinstance(data, bytes):
+                with open(name, 'ab+') as f:
+                    f.write(data)
 
 class LogOnceAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):

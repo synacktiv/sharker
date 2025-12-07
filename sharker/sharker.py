@@ -209,7 +209,7 @@ def distribute_filters_to_workers(filters_list, num_workers):
 
 
 def _compute_filters(
-    log, active_filter_instances, indexed_packet, output_files, packet_id, summary
+    log, active_filter_instances, indexed_packet, packet_id, summary
 ):
     result = {}
     for filter_name, current_filter_instance in active_filter_instances.items():
@@ -237,21 +237,14 @@ def _compute_filters(
 
 def _prepare_filter_instances(filter_instances, assigned_filters, output_prefix_str, unique):
     log = logging.LoggerAdapter(logging.getLogger('sharker.preparefilter'), {'pretty_name': 'Filter setup'})
-    output_files = {}
     active_filter_instances = {}
     worker_process_summary = {}
     for filter_name in assigned_filters:
         if filter_name in filter_instances:
             try:
-                if filter_instances[filter_name].store_in_files:
-                    output_path = f'{output_prefix_str}{filter_name}/'
-                    os.makedirs(output_path, exist_ok=True)
-                else:
-                    output_path = f'{output_prefix_str}{filter_name}.txt'
-
-                active_filter_instances[filter_name] = filter_instances[filter_name](output_path, unique)
+                output_prefix = f'{output_prefix_str}{filter_name}'
+                active_filter_instances[filter_name] = filter_instances[filter_name](output_prefix, unique)
                 worker_process_summary[filter_name] = 0
-                output_files[filter_name] = output_path
             except Exception as e:
                 console.print_exception(show_locals=True)
                 log.error(
@@ -261,7 +254,7 @@ def _prepare_filter_instances(filter_instances, assigned_filters, output_prefix_
             log.error(
                 f'Process: Filter "{filter_name}" (assigned) not in global FILTERS. Skipped by worker.'
             )
-    return worker_process_summary, active_filter_instances, output_files
+    return worker_process_summary, active_filter_instances
 
 
 def run_tshark(filter, pcap=None, interface=None):
@@ -330,20 +323,11 @@ def parse(filter_instances, output_directory, queried_filters, threads, pcap_fil
 
     tshark_proc = run_tshark(big_filter, pcap=pcap_file, interface=interface)
 
-    for filter_name in queried_filters:
-        try:
-            # Temporarily instantiate to check store_in_files.
-            if filter_instances[filter_name]._do_write_to_file and filter_instances[filter_name].store_in_files:
-                os.makedirs(f'{output_path_prefix}{filter_name}', exist_ok=True)
-        except Exception as e:
-            log.error(f'Err check/create dir for filter {filter_name}: {e}')
-
     if threads == 0:
         # Run in a single thread
         (
             worker_process_summary,
             active_filter_instances,
-            output_files,
         ) = _prepare_filter_instances(filter_instances, queried_filters, output_path_prefix, unique)
 
         processed_packet_count = 0
@@ -371,14 +355,9 @@ def parse(filter_instances, output_directory, queried_filters, threads, pcap_fil
                 log,
                 active_filter_instances,
                 indexed_packet,
-                output_files,
                 processed_packet_count - 1,
                 worker_process_summary,
             )
-
-        for entry in output_files.values():
-            if not isinstance(entry, str):
-                entry.close()
 
         if processed_packet_count == 0:
             log.debug('No items to process from input data.')
