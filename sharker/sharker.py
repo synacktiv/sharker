@@ -340,7 +340,7 @@ def parse(filter_instances, output_directory, queried_filters, threads, pcap_fil
         ):
             processed_packet_count += 1
             if processed_packet_count % 5000 == 0:
-                log.info(f'Parsed {processed_packet_count//1000}k packets')
+                log.info(f'Parsed {processed_packet_count//1000}k interesting packets')
             if not isinstance(item, dict):
                 log.error(f'Skipping non-dict item {processed_packet_count - 1}')
                 continue
