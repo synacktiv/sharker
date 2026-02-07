@@ -47,23 +47,20 @@ Tool requirements: tshark
 
 class MyRichLogHandler(logging.Handler):
     LEVEL_MAPPING = {
-        logging.DEBUG: "[gray30]DEBUG[/gray30]",
-        logging.INFO: "[green]INFO[/green]",
-        logging.WARNING: "[yellow]WARNING[/yellow]",
-        logging.ERROR: "[red]ERROR[/red]",
-        logging.CRITICAL: "[bold red]CRITICAL[/bold red]",
+        logging.DEBUG: "\033[90mDEBUG\033[0m",
+        logging.INFO: "\033[32mINFO\033[0m",
+        logging.WARNING: "\033[33mWARNING\033[0m",
+        logging.ERROR: "\033[31mERROR\033[0m",
+        logging.CRITICAL: "\033[1;31mCRITICAL\033[0m",
     }
 
     def emit(self, record):
         msg = self.format(record)
-        console.print(msg)
+        print(msg)
 
     def format(self, record):
         levelname = self.LEVEL_MAPPING.get(record.levelno, str(record.levelno))
         record.levelname = levelname
-        record.msg = rich.markup.escape(record.msg)
-        self.formatter.datefmt = f'[cyan]{self.formatter.datefmt}[/cyan]'
-
         return super().format(record)
 
 
@@ -80,7 +77,7 @@ def setup_logging(verbose: bool, no_color: bool):
         formatter = logging.Formatter('[%(asctime)s][%(levelname)s][%(pretty_name)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     else:
         console_handler = MyRichLogHandler()
-        formatter = logging.Formatter('\\[%(asctime)s]\\[%(levelname)s][blue]\\[%(pretty_name)s][/blue] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+        formatter = logging.Formatter('[%(asctime)s][%(levelname)s]\033[34m[%(pretty_name)s]\033[0m %(message)s', datefmt='\033[36m%Y-%m-%d %H:%M:%S\033[0m')
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
