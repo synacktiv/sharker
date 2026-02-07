@@ -21,6 +21,9 @@ class FilterConfig(FilterConfigBase):
     def parser(self, data):
         res = []
         for elt in data['ldap.searchRequest_element']:
+            if 'ldap.baseObject' not in elt:
+                self.log.warning_once('Malformed LDAP object')
+                continue
             cur = f'Base: {elt["ldap.baseObject"]}'.strip()
             for key in elt.keys():
                 if key.startswith('Filter: '):
