@@ -213,14 +213,22 @@ def _compute_filters(
 ):
     result = {}
     for filter_name, current_filter_instance in active_filter_instances.items():
-        ok = False
-        for selector in current_filter_instance.mandatory_selectors:
-            if selector not in indexed_packet:
-                break
+
+        if current_filter_instance.mandatory_selectors:
+            # There are mandatory selectors, all needs to be there
+            ok = False
+            for selector in current_filter_instance.mandatory_selectors:
+                if selector not in indexed_packet:
+                    break
+            else:
+                ok = True
+            if not ok:
+                continue
         else:
-            ok = True
-        if not ok:
-            continue
+            # No mandatory selectors, let's check for optional ones
+            if all(selector not in indexed_packet for selector in current_filter_instance.optional_selectors):
+                # No optional selectors
+                continue
 
         try:
             output = current_filter_instance.parser(indexed_packet)
