@@ -65,6 +65,8 @@ class FilterConfig(FilterConfigBase):
                             salt = None
 
                         return self.gen_hash(etype, client_name, service_name, packet_hash, salt, realm)
+                    elif padata_elt['kerberos.padata_type'] == '16':
+                        self.log.warning('Kerberos AS REQ message using PKINIT, not generating a hash since it would not be bruteforcable')
 
             # No encrypted timestamp
             # Save the client name and service name for current Kerberos exchange

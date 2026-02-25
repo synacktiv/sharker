@@ -22,6 +22,17 @@ class FilterConfig(FilterConfigBase):
     optional_selectors = []
 
     def parser(self, data):
+        if 'kerberos.padata_tree|kerberos.PA_DATA_element' in data:
+            padata_elts = data['kerberos.padata_tree|kerberos.PA_DATA_element']
+
+            if isinstance(padata_elts[0], list):
+                padata_elts = padata_elts[0]
+
+            for padata in padata_elts:
+                if padata['kerberos.padata_type'] == '17':
+                    self.log.warning('Kerberos AS REP message using PKINIT, not generating a hash since it would not be bruteforcable')
+                    return 0
+
         etype = data['kerberos.as_rep_element|kerberos.enc_part_element|kerberos.etype'][0]
         cipher = data['kerberos.as_rep_element|kerberos.enc_part_element|kerberos.cipher'][0].replace(':', '')
         realm = data['kerberos|kerberos.as_rep_element|kerberos.crealm'][0]
