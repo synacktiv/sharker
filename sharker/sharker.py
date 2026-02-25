@@ -262,7 +262,7 @@ def _prepare_filter_instances(filter_instances, assigned_filters, output_prefix_
     return worker_process_summary, active_filter_instances
 
 
-def run_tshark(filter, pcap=None, interface=None):
+def run_tshark(filter, pcap=None, interface=None, options=[]):
     log = logging.LoggerAdapter(logging.getLogger('sharker.tshark'), {'pretty_name': 'tshark'})
 
     if not shutil.which('tshark'):
@@ -280,6 +280,7 @@ def run_tshark(filter, pcap=None, interface=None):
         '-Y', filter,
         '-T', 'json', '--no-duplicate-keys',
     ]
+    cmd += options
 
     log.debug(f'Running {cmd}')
     try:
@@ -300,7 +301,7 @@ def run_tshark(filter, pcap=None, interface=None):
     return tshark_proc
 
 
-def parse(filter_instances, output_directory, queried_filters, threads, pcap_file=None, interface=None, output_prefix=None, unique=False, develop=False):
+def parse(filter_instances, output_directory, queried_filters, threads, pcap_file=None, interface=None, output_prefix=None, unique=False, develop=False, tshark_options=[]):
     log = logging.LoggerAdapter(logging.getLogger('sharker.parse'), {'pretty_name': 'sharker'})
     start_time = time.time()
     summary = {}
@@ -326,7 +327,7 @@ def parse(filter_instances, output_directory, queried_filters, threads, pcap_fil
         return {}
     big_filter = '(' + ') || ('.join(tshark_filter_parts) + ')'
 
-    tshark_proc = run_tshark(big_filter, pcap=pcap_file, interface=interface)
+    tshark_proc = run_tshark(big_filter, pcap=pcap_file, interface=interface, options=tshark_options)
 
     if threads == 0:
         # Run in a single thread
@@ -440,13 +441,17 @@ def parse(filter_instances, output_directory, queried_filters, threads, pcap_fil
 @optgroup.group('Debugging')
 @optgroup.option('-t', '--threads', metavar='NB', type=int, default=0, help='EXPERIMENTAL: number of threads, use only if you know what you are doing.', hidden=True)
 @optgroup.option('-v', '--verbose', is_flag=True, help='Verbose mode.')
+# Tshark customization
+@optgroup.group('Tshark customization')
+@optgroup.option('--custom-tcp-port', multiple=True, metavar='PORT,PROTO', help='Try to decode TCP traffic on port PORT as PROTO, eg. "8085,http". Option can be specified multiple times')
 def sharker_cli(pcap_files, pcap_dir, interface,  # Input
                 output_mode, unique, fast,  # General output options
                 output_dir, output_prefix,  # Output to file
                 print_everything, no_color, pf, xpf, pc, xpc, nwf, nwc,  # Output to console
                 all_filters, filters, not_filters, categories, not_categories,  # Filter selection
                 list_filters, list_all_filters, list_all_filter_categories,  # Filter information
-                threads, verbose):  # Performance
+                threads, verbose,  # Performance
+                custom_tcp_port):  # Tshark customization
 
     # 1) Configure logging
     setup_logging(verbose, no_color)
@@ -502,7 +507,13 @@ def sharker_cli(pcap_files, pcap_dir, interface,  # Input
     nwf = [] if nwf == 'NOTSET' else nwf.split(',')
     nwc = [] if nwc == 'NOTSET' else nwc.split(',')
 
-    # 4) Gather all filter classes
+    # 4) Configure additional tshark options
+    tshark_options = []
+    for add_tcp in custom_tcp_port:
+        tshark_options.append('-d')
+        tshark_options.append(f'tcp.port=={add_tcp}')
+
+    # 5) Gather all filter classes
     FILTERS = {}
     package = sharker.filters
     for _, module_name, is_pkg in pkgutil.iter_modules(package.__path__):
@@ -515,16 +526,16 @@ def sharker_cli(pcap_files, pcap_dir, interface,  # Input
                 exit(1)
             FILTERS[curclass.name] = curclass
 
-    # 5) Retrieve the list of filters wanted by the user
+    # 6) Retrieve the list of filters wanted by the user
     queried_filters = parse_queried_filters(FILTERS, filters, categories, not_filters, not_categories)
 
-    # 6) Ensure queried filter are in the proper format
+    # 7) Ensure queried filter are in the proper format
     ok, errors = check_filters_format(FILTERS, queried_filters)
     if not ok:
         log.critical(f'Filters not properly formatted: {errors}')
         return
 
-    # 7) Special commands that terminate sharker
+    # 8) Special commands that terminate sharker
     if list_all_filters:
         table = rich.table.Table(show_header=True, box=rich.box.SIMPLE)
         table.add_column('Name')
@@ -561,7 +572,7 @@ def sharker_cli(pcap_files, pcap_dir, interface,  # Input
 
     log.debug(f'Loaded following filters: {",".join(queried_filters)}')
 
-    # 8) Handle output
+    # 9) Handle output
     anything_stored_to_file = False
     for filter_name in queried_filters:
         if output_mode == 'develop':
@@ -613,7 +624,7 @@ def sharker_cli(pcap_files, pcap_dir, interface,  # Input
     more_help = ''
     grand_total_summary = {}
 
-    # 9) Start working
+    # 10) Start working
     #     - Got a folder containing PCAPs: we just build the pcap_files list
     if pcap_dir:
         pcap_files = list(pcap_files)
@@ -628,7 +639,7 @@ def sharker_cli(pcap_files, pcap_dir, interface,  # Input
         log.info(f'Processing PCAP: {pcap_path}')
         try:
             summary = parse(
-                FILTERS, pcap_file=pcap_path, output_directory=output_dir, queried_filters=queried_filters, threads=threads, unique=unique, develop=output_mode == 'develop'
+                FILTERS, pcap_file=pcap_path, output_directory=output_dir, queried_filters=queried_filters, threads=threads, unique=unique, develop=output_mode == 'develop', tshark_options=tshark_options
             )
         except Exception as e:
             if verbose:
@@ -643,7 +654,7 @@ def sharker_cli(pcap_files, pcap_dir, interface,  # Input
     #     - Got a network interface
     if interface:
         try:
-            summary = parse(FILTERS, interface=interface, output_directory=output_dir, queried_filters=queried_filters, threads=threads, unique=unique, develop=output_mode == 'develop')
+            summary = parse(FILTERS, interface=interface, output_directory=output_dir, queried_filters=queried_filters, threads=threads, unique=unique, develop=output_mode == 'develop', tshark_options=tshark_options)
         except Exception as e:
             if verbose:
                 console.print_exception(show_locals=True)
@@ -657,7 +668,7 @@ def sharker_cli(pcap_files, pcap_dir, interface,  # Input
                 continue
             grand_total_summary[name] = grand_total_summary.get(name, 0) + count
 
-    # 10) Work finished, handle results
+    # 11) Work finished, handle results
     if grand_total_summary:
         log.info('Got following results.')
         table = rich.table.Table()
