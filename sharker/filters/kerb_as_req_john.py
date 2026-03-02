@@ -36,6 +36,8 @@ class FilterConfig(FilterConfigBase):
                     self.log.warning_once('Retrieved domain does not seem to be the FQDN, the salt required for Kerberos AES computation likely needs the FQDN, you will have to patch the salt manually with the domain FQDN.')
                 salt = f'{domain}{client_name}'
 
+            if len(packet_hash) != 112:
+                self.log.warning('Captured hash is not 56 bytes long, it is valid, but it will not be supported by john natively. Hashcat supports it though.')
             self.output(f'$krb5pa${etype}${client_name}${domain}${salt}${packet_hash}')
 
         return 1
