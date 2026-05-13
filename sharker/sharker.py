@@ -444,6 +444,7 @@ def parse(filter_instances, output_directory, queried_filters, threads, pcap_fil
 # Tshark customization
 @optgroup.group('Tshark customization')
 @optgroup.option('--custom-tcp-port', multiple=True, metavar='PORT,PROTO', help='Try to decode TCP traffic on port PORT as PROTO, eg. "8085,http". Option can be specified multiple times')
+@optgroup.option('--tls-keylog-file', type=click.Path(exists=True, dir_okay=False, resolve_path=True), metavar='FILE', help='Path to a TLS key log file (SSLKEYLOGFILE) to decrypt TLS traffic.')
 def sharker_cli(pcap_files, pcap_dir, interface,  # Input
                 output_mode, unique, fast,  # General output options
                 output_dir, output_prefix,  # Output to file
@@ -451,7 +452,7 @@ def sharker_cli(pcap_files, pcap_dir, interface,  # Input
                 all_filters, filters, not_filters, categories, not_categories,  # Filter selection
                 list_filters, list_all_filters, list_all_filter_categories,  # Filter information
                 threads, verbose,  # Performance
-                custom_tcp_port):  # Tshark customization
+                custom_tcp_port, tls_keylog_file):  # Tshark customization
 
     # 1) Configure logging
     setup_logging(verbose, no_color)
@@ -512,6 +513,9 @@ def sharker_cli(pcap_files, pcap_dir, interface,  # Input
     for add_tcp in custom_tcp_port:
         tshark_options.append('-d')
         tshark_options.append(f'tcp.port=={add_tcp}')
+    if tls_keylog_file:
+        tshark_options.append('-o')
+        tshark_options.append(f'tls.keylog_file:{tls_keylog_file}')
 
     # 5) Gather all filter classes
     FILTERS = {}
