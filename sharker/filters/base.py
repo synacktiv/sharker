@@ -38,6 +38,8 @@ class FilterConfigBase:
 
     _authorized_filename_rg = re.compile(r'^[a-zA-Z0-9\-_.]*$')
 
+    _unauthorized_characters_rg = re.compile(r'[^a-zA-Z0-9\-_.]')
+
     def __init__(self, output_prefix, unique=False):
         self._output_prefix = output_prefix
         self._f_handles = {}
@@ -99,7 +101,7 @@ class FilterConfigBase:
 
             self._f_handles[suffix].write(data + '\n')
 
-    def output_to_file(self, data, filename=None):
+    def output_to_file(self, data, filename=None, append_to_file=True):
         '''
         Method to output data to files in this filter's subfolder output.
 
@@ -108,6 +110,8 @@ class FilterConfigBase:
 
         The additional filename parameter allows to specify the filename to send
         the data to, only [a-zA-Z0-9\\-_\\.] is authorized for security reasons.
+
+        If append_to_file is set to False, existing file will be overwritted instead of appended.
 
         The unicity is not verified for this type of output.
         '''
@@ -125,11 +129,20 @@ class FilterConfigBase:
             os.makedirs(self._output_prefix, exist_ok=True)
 
             if isinstance(data, str):
-                with open(name, 'a+', encoding='utf-8') as f:
+                open_mode = 'a+' if append_to_file else 'w+'
+                with open(name, open_mode, encoding='utf-8') as f:
                     f.write(data)
             elif isinstance(data, bytes):
-                with open(name, 'ab+') as f:
+                open_mode = 'ab+' if append_to_file else 'wb+'
+                with open(name, open_mode) as f:
                     f.write(data)
+
+    def to_safe_filename(self, filename):
+        '''
+        Method to replace unauthorized characters in filename.
+        '''
+        return self._unauthorized_characters_rg.sub(filename, '_')
+
 
 class LogOnceAdapter(logging.LoggerAdapter):
     def __init__(self, logger, extra):
